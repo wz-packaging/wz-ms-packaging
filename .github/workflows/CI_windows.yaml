@@ -100,7 +100,7 @@ jobs:
         echo "WZ_RELEASE_SEMVER=${WZ_LATEST_RELEASE_TAG}" >> $GITHUB_OUTPUT
         WZ_PACKAGING_VERSION="${WZ_LATEST_RELEASE_TAG}.0"
         echo "WZ_PACKAGING_VERSION=${WZ_PACKAGING_VERSION}" >> $GITHUB_OUTPUT
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         path: 'wzmsixpackaging'
         submodules: recursive
@@ -414,6 +414,24 @@ jobs:
         Remove-Item "${env:STAGING_SEQUENCES_PATH}" -Recurse -Force -ErrorAction Stop
         Remove-Item "${env:STAGING_FILES_PATH}" -Recurse -Force -ErrorAction Stop
         Remove-Item "${env:STAGING_DEBUGSYMBOLS_PATH}" -Recurse -Force -ErrorAction Stop
+    - name: Package .msixupload
+      id: package-msixupload
+      env:
+        STAGING_OUTPUTS_PATH: ${{ steps.config.outputs.STAGING_OUTPUTS_PATH }}
+        WZ_PACKAGING_VERSION: ${{ steps.version.outputs.WZ_PACKAGING_VERSION }}
+      run: |
+        $MSIXUPLOAD_FILENAME = "Warzone2100_${env:WZ_PACKAGING_VERSION}.msixupload"
+        $MSIXUPLOAD_OUTPUT_PATH = $(Join-Path "${env:UPLOAD_INSTALL_PATH}" "${MSIXUPLOAD_FILENAME}")
+        Compress-Archive -Path "${env:STAGING_OUTPUTS_PATH}\*.*" -DestinationPath "${MSIXUPLOAD_OUTPUT_PATH}"
+        echo "MSIXUPLOAD_OUTPUT_PATH=${MSIXUPLOAD_OUTPUT_PATH}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        Write-Host "${MSIXUPLOAD_FILENAME}`n`t-> SHA512: $((Get-FileHash -LiteralPath "${MSIXUPLOAD_OUTPUT_PATH}" -Algorithm SHA512).Hash)`n`t`-> Size (bytes): $((Get-Item -LiteralPath "${MSIXUPLOAD_OUTPUT_PATH}").Length)"
+    - name: Upload .msixupload artifact
+      uses: actions/upload-artifact@v7
+      with:
+        path: '${{ steps.package-msixupload.outputs.MSIXUPLOAD_OUTPUT_PATH }}'
+        archive: false
+        if-no-files-found: 'error'
+        retention-days: 5
     - name: 'Validate App (appcert.exe)'
       env:
         STAGING_PATH: ${{ steps.config.outputs.STAGING_PATH }}
@@ -435,30 +453,19 @@ jobs:
           exit 1
         }
     - name: Collect Validation Logs (on Failure)
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: failure()
       with:
         name: validation_report
         path: '${{ steps.config.outputs.STAGING_PATH }}\cert_report.xml'
         if-no-files-found: 'warn'
-    - name: Package .msixupload
-      id: package-msixupload
-      env:
-        STAGING_OUTPUTS_PATH: ${{ steps.config.outputs.STAGING_OUTPUTS_PATH }}
-        WZ_PACKAGING_VERSION: ${{ steps.version.outputs.WZ_PACKAGING_VERSION }}
-      run: |
-        $MSIXUPLOAD_FILENAME = "Warzone2100_${env:WZ_PACKAGING_VERSION}.msixupload"
-        $MSIXUPLOAD_OUTPUT_PATH = $(Join-Path "${env:UPLOAD_INSTALL_PATH}" "${MSIXUPLOAD_FILENAME}")
-        Compress-Archive -Path "${env:STAGING_OUTPUTS_PATH}\*.*" -DestinationPath "${MSIXUPLOAD_OUTPUT_PATH}"
-        echo "MSIXUPLOAD_OUTPUT_PATH=${MSIXUPLOAD_OUTPUT_PATH}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-        Write-Host "${MSIXUPLOAD_FILENAME}`n`t-> SHA512: $((Get-FileHash -LiteralPath "${MSIXUPLOAD_OUTPUT_PATH}" -Algorithm SHA512).Hash)`n`t`-> Size (bytes): $((Get-Item -LiteralPath "${MSIXUPLOAD_OUTPUT_PATH}").Length)"
     - name: Clean-up Some Staging Files
       env:
         STAGING_OUTPUTS_PATH: ${{ steps.config.outputs.STAGING_OUTPUTS_PATH }}
       run: |
         Remove-Item "${env:STAGING_OUTPUTS_PATH}" -Recurse -Force -ErrorAction Stop
     - name: Upload .msixupload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: msixupload
         path: '${{ steps.package-msixupload.outputs.MSIXUPLOAD_OUTPUT_PATH }}'
