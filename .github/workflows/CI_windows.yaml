@@ -464,10 +464,3 @@ jobs:
         STAGING_OUTPUTS_PATH: ${{ steps.config.outputs.STAGING_OUTPUTS_PATH }}
       run: |
         Remove-Item "${env:STAGING_OUTPUTS_PATH}" -Recurse -Force -ErrorAction Stop
-    - name: Upload .msixupload artifact
-      uses: actions/upload-artifact@v7
-      with:
-        name: msixupload
-        path: '${{ steps.package-msixupload.outputs.MSIXUPLOAD_OUTPUT_PATH }}'
-        if-no-files-found: 'error'
-        retention-days: 5
